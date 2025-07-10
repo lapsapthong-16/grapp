@@ -72,18 +72,18 @@ bool initPixelFormat(HDC hdc)
 //--------------------------------------------------------------------
 
 void p1_q1() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); //set clear colour
+	glClear(GL_COLOR_BUFFER_BIT); //clear the colour
 
 	glColor3f(1.0f, 1.0f, 1.0f);
 	glPointSize(5.0f);
 	glLineWidth(5.0f);
-	glBegin(GL_QUADS);
+	glBegin(GL_QUADS); //must begin
 	glVertex2f(-1.0f, 0.0f);
 	glVertex2f(1.0f, 0.0f);
 	glVertex2f(1.0f, 1.0f);
 	glVertex2f(-1.0f, 1.0f);
-	glEnd();
+	glEnd(); //must end
 }
 
 void p1_q2() {
@@ -93,6 +93,7 @@ void p1_q2() {
 	glColor3f(0.0f, 0.0f, 0.0f);
 	glPointSize(5.0f);
 	glLineWidth(5.0f);
+
 	glBegin(GL_TRIANGLES);
 	glVertex2f(0.0f, 0.0f);
 	glVertex2f(-1.0f, 1.0f);
@@ -130,24 +131,24 @@ void p1_q3() {
 }
 
 void p1_q4() {
-	glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 1.0f, 1.0f);  // Set background color (blue)
+    glClear(GL_COLOR_BUFFER_BIT);            // Clear the window using the background color
 
+    glColor3f(1.0f, 1.0f, 1.0f);            // Set drawing color to white
+    
+    glBegin(GL_QUADS);                       // Begin drawing the first quadrilateral
+    glVertex2f(-1.2f, 0.8f);                // Vertex 1 (top-left)
+    glVertex2f(-0.8f, 1.2f);                // Vertex 2 (top-right)
+    glVertex2f(1.2f, -0.8f);                // Vertex 3 (bottom-right)
+    glVertex2f(0.8f, -1.2f);                // Vertex 4 (bottom-left)
+    glEnd();                                 // End the first quadrilateral
 
-	glColor3f(1.0f, 1.0f, 1.0f);
-	glBegin(GL_QUADS);
-	glVertex2f(-1.2f, 0.8f);
-	glVertex2f(-0.8f, 1.2f);
-	glVertex2f(1.2f, -0.8f);
-	glVertex2f(0.8f, -1.2f);
-	glEnd();
-
-	glBegin(GL_QUADS);
-	glVertex2f(-1.2f, -0.8);
-	glVertex2f(-0.8f, -1.2f);
-	glVertex2f(1.2f, 0.8f);
-	glVertex2f(0.8f, 1.2f);
-	glEnd();
+    glBegin(GL_QUADS);                       // Begin drawing the second quadrilateral
+    glVertex2f(-1.2f, -0.8f);               // Vertex 1 (top-left)
+    glVertex2f(-0.8f, -1.2f);               // Vertex 2 (top-right)
+    glVertex2f(1.2f, 0.8f);                 // Vertex 3 (bottom-right)
+    glVertex2f(0.8f, 1.2f);                 // Vertex 4 (bottom-left)
+    glEnd();                                 // End the second quadrilateral
 }
 
 int counter = 0;
@@ -159,18 +160,17 @@ void p1_q5()
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glColor3f(0.0f, 0.5f, 1.0f);
-	glBegin(GL_POLYGON);
-	for (int i = 0; i < 360; i += 10)
-	{
-		float theta = 2.0f * 3.14159 * i / 360;
-		float x = radius * .8 * cos(theta);
-		float y = radius * .8 * sin(theta);
-		glVertex2f(x, y);
-	}
-	glEnd();
+    glBegin(GL_POLYGON);                     // Begin drawing the outer circle (face)
+    for (int i = 0; i < 360; i += 10) {
+        float theta = 2.0f * 3.14159 * i / 360;
+        float x = radius * 0.8f * cos(theta);
+        float y = radius * 0.8f * sin(theta);
+        glVertex2f(x, y);                   // Define the vertices of the circle
+    }
+    glEnd();
 
-	glColor3f(1.0f, 1.0f, 1.0f);
-	glBegin(GL_POLYGON);
+	glColor3f(1.0f, 1.0f, 1.0f);  // Begin drawing the first eye (upper circle)
+	glBegin(GL_POLYGON); // Set drawing color to white (for eyes) 
 	for (int i = 0; i < 360; i += 10)
 	{
 		float theta = 2.0f * 3.14159 * i / 360;
@@ -181,7 +181,7 @@ void p1_q5()
 	glEnd();
 
 	float r2 = 0.2;
-	glColor3f(1.0f, 1.0f, 1.0f);
+	glColor3f(1.0f, 1.0f, 1.0f);   // Set drawing color to white (for second eye)
 	glBegin(GL_POLYGON);
 	for (int i = 0; i < 360; i += 10)
 	{
@@ -192,7 +192,7 @@ void p1_q5()
 	}
 	glEnd();
 
-	glColor3f(1.0f, 1.0f, 1.0f);
+	glColor3f(1.0f, 1.0f, 1.0f);  // Set drawing color to white (for mouth)
 	glBegin(GL_POLYGON);
 	for (int i = 0; i < 360; i += 10)
 	{
@@ -203,8 +203,8 @@ void p1_q5()
 	}
 	glEnd();
 
-	glLineWidth(3.0f);
-	glBegin(GL_LINE_STRIP);
+	glLineWidth(3.0f); 
+	glBegin(GL_LINE_STRIP); // Set drawing color to black (for eyes)
 	glColor3f(0.0f, 0.0f, 0.0f);
 	for (int i = 0; i < 360; i++)
 	{
@@ -404,7 +404,7 @@ void display()
 		p1_q4();
 
 	}
-	glFlush();
+	glFlush(); //ensure it is executed
 
 }
 //--------------------------------------------------------------------
