@@ -1,6 +1,7 @@
 
 #include <Windows.h>
 #include <gl/GL.h>
+#include <math.h>  
 
 #pragma comment (lib, "OpenGL32.lib")
 
@@ -63,7 +64,6 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 			objPosX = 0.0f; objPosY = 0.0f; // Reset position
 			objColorR = 1.0f; objColorG = 1.0f; objColorB = 1.0f; // Reset color white
 			break;
-
 		case '0':
 			qNo = 0;
 			break;
@@ -78,15 +78,6 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 			break;
 		case '4':
 			qNo = 4;
-			break;
-		case '5':
-			qNo = 5;
-			break;
-		case '6':
-			qNo = 6;
-			break;
-		case '7':
-			qNo = 7;
 			break;
 		}
 		break;
@@ -131,14 +122,14 @@ bool initPixelFormat(HDC hdc)
 }
 //--------------------------------------------------------------------
 
-void demo() {
+void q1() {
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Background black
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glLoadIdentity(); // Reset matrix
-	glTranslatef(objPosX, objPosY, 0.0f); // Apply position
+	glTranslatef(objPosX, objPosY, 0.0f);
 
-	glColor3f(objColorR, objColorG, objColorB); // Set color
+	glColor3f(objColorR, objColorG, objColorB);
 
 	glBegin(GL_TRIANGLES);
 	glVertex2f(-0.5f, 0.0f);
@@ -146,57 +137,6 @@ void demo() {
 	glVertex2f(0.5f, 0.0f);
 	glEnd();
 }
-
-void translateDemo1() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set background color to black
-	glClear(GL_COLOR_BUFFER_BIT); // Clear the color and depth buffers
-
-	glTranslatef(0.0001f, 0.0, 0.0); // Move the origin to the right
-	glBegin(GL_TRIANGLES); // Start drawing triangles
-	glVertex2f(-0.5, 0.0);
-	glVertex2f(0.0, 0.5);
-	glVertex2f(0.5, 0.0);
-	glEnd(); // End drawing triangles
-}
-
-void translateDemo2() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set background color to black
-	glClear(GL_COLOR_BUFFER_BIT); // Clear the color and depth buffers
-
-	glLoadIdentity(); // Load the identity matrix
-	glTranslatef(0.4, 0.0, 0.0); // Move the origin to the right
-	glBegin(GL_TRIANGLES); // Start drawing triangles
-	glVertex2f(-0.5, 0.0);
-	glVertex2f(0.0, 0.5);
-	glVertex2f(0.5, 0.0);
-	glEnd(); // End drawing triangles
-}
-
-void rotateDemo1() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set background color to black
-	glClear(GL_COLOR_BUFFER_BIT); // Clear the color and depth buffers
-	glRotatef(0.01, 0.0, 0.0, 1.0);
-	glBegin(GL_TRIANGLES); // Start drawing triangles
-	glVertex2f(-0.5, 0.0);
-	glVertex2f(0.0, 0.5);
-	glVertex2f(0.5, 0.0);
-	glEnd();
-}
-
-void rotateDemo2() {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set background color to black
-	glClear(GL_COLOR_BUFFER_BIT); // Clear the color and depth buffers
-
-	glLoadIdentity(); // Load the identity matrix
-	glRotatef(90, 0.0, 0.0, 1.0);
-	glBegin(GL_TRIANGLES); // Start drawing triangles
-	glVertex2f(-0.5, 0.0);
-	glVertex2f(0.0, 0.5);
-	glVertex2f(0.5, 0.0);
-	glEnd();
-}
-
-#include <math.h>  // For sin and cos
 
 void q2() {
 	static float colorPhase = 0.0f;
@@ -221,7 +161,7 @@ void q2() {
 	glVertex2f(0.0f, 0.0f);
 
 
-	const int points = 10;          // 5 points * 2 (outer + inner)
+	const int points = 10;        
 	const float outerRadius = 0.5f;
 	const float innerRadius = 0.2f;
 
@@ -242,7 +182,7 @@ void q2() {
 void q3() {
 	static float angle = 0.0f;
 	static float radius = 0.5f;
-	angle += 0.01f; // Controls speed & direction (positive = anticlockwise)
+	angle += 0.01f; 
 
 	float x = cosf(angle) * radius;
 	float y = sinf(angle) * radius;
@@ -286,27 +226,18 @@ void display()
 	switch (qNo)
 	{
 	case 0:
-		demo();
+		q1();
 		break;
 	case 1:
-		translateDemo1();
+		q1();
 		break;
 	case 2:
-		translateDemo2();
-		break;
-	case 3:
-		rotateDemo1();
-		break;
-	case 4:
-		rotateDemo2();
-		break;
-	case 5:
 		q2();
 		break;
-	case 6:
+	case 3:
 		q3();
 		break;
-	case 7:
+	case 4:
 		q4();
 		break;
 	default:
