@@ -73,10 +73,10 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 			}
 			break;
 		}
-		break;
+		return 0;
 
-	return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
+	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
 //--------------------------------------------------------------------
@@ -164,7 +164,8 @@ void q2()
 
 	// Upper arm
 	glPushMatrix();
-	glScalef(2.0f, 0.3f, 0.3f);       // Stretch to make rectangular "cube"
+	glScalef(2.0f, 0.7f, 0.7f);
+	// Stretch to make rectangular "cube"
 	drawWireCube();
 	glPopMatrix();
 
@@ -174,7 +175,8 @@ void q2()
 	glTranslatef(1.1f, 0, 0);         // Position lower arm
 
 	glPushMatrix();
-	glScalef(2.0f, 0.3f, 0.3f);       // Same as upper arm
+	glScalef(2.0f, 0.7f, 0.7f);
+	// Same as upper arm
 	drawWireCube();
 	glPopMatrix();
 
