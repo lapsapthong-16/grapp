@@ -27,5 +27,8 @@
     <ClCompile Include="pract4B.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="pract5.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
