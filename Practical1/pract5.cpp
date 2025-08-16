@@ -105,7 +105,7 @@ void drawBasculeLeaf(bool leftSide, float angleDeg,
 
     glPushMatrix();
     glTranslatef(hingeX, 0.0f, 0.0f);          // move to hinge position
-    glRotatef(dir * angleDeg, 0.0f, 0.0f, 1.0f); // rotate around hinge
+    glRotatef(-dir * angleDeg, 0.0f, 0.0f, 1.0f); // rotate around hinge
     glTranslatef(-dir * (length * 0.5f), 0.0f, 0.0f); // place box so its inner end sits at the hinge
 
     glColor3f(0.32f, 0.35f, 0.39f);
