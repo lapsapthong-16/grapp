@@ -9,6 +9,9 @@
 static bool  gPerspective = true;
 static bool  gSplitViewport = false;
 
+static bool  gShowGrid = false;   // toggle with 'G'
+static float gTime = 0.0f;    // seconds since start (for water anim)
+
 static float gYaw = -25.0f;     // orbit yaw (deg)
 static float gPitch = 20.0f;    // orbit pitch (deg)
 static float gDist = 42.0f;     // camera distance
@@ -25,9 +28,21 @@ static POINT gLastMouse = { 0,0 };
 
 static inline float deg2rad(float a) { return a * 3.1415926535f / 180.0f; }
 
-// --- NEW: forward decls ---
 void initGLStyling();
 void drawGridXZ(float halfX, float halfZ, float step);
+
+// new features
+static inline float cableY(float t, float yBase, float sag);
+void drawHangers(float yBase, float x0, float x1, float sag, float z, float deckY, float spacing);
+void drawBeamBox(float x0, float x1, float y0, float y1, float z0, float z1);
+void drawDeckGirders(float x0, float x1, float deckY, float deckWidth);
+void drawDashedCenterLine(float len, float z, float y, float dash, float gap);
+void drawExpansionJoint(float width, float y);
+void drawLampPost();
+void placeLamps(float x0, float x1, float deckY, float z);
+void drawTowerDecor();
+void drawPier(float x, float y, float z, float w, float h, float d);
+void drawWater(float x, float z, float w, float d);
 
 // ---------------- Projection ----------------
 void setPerspective(float fovY_deg, float aspect, float zNear, float zFar)
@@ -65,7 +80,7 @@ void drawBox(float w, float h, float d)
     glEnd();
 }
 
-// XZ arch strip (for tower openings) — keep original shape
+// XZ arch strip (for tower openings)
 void drawArch(float radius, float thickness, float span, int steps, float depth)
 {
     float z0 = -depth * 0.5f, z1 = depth * 0.5f;
@@ -82,45 +97,213 @@ void drawArch(float radius, float thickness, float span, int steps, float depth)
     glEnd();
 }
 
-void drawCable(float yBase, float x0, float x1, float sag, int steps, float z)
-{
-    // draw as nice antialiased lines, unlit
-    glDisable(GL_LIGHTING);
-    glLineWidth(2.0f);
-    glColor4f(0.15f, 0.65f, 0.85f, 0.9f);
+// ---------------- NEW DETAILING ----------------
+static inline float cableY(float t, float yBase, float sag) {
+    float m = t - 0.5f;
+    return yBase - sag * (1.0f - 4.0f * m * m);
+}
 
-    glBegin(GL_LINE_STRIP);
-    for (int i = 0; i <= steps; i++) {
-        float t = (float)i / steps;
-        float x = x0 + t * (x1 - x0);
-        float m = (t - 0.5f);
-        float y = yBase - sag * (1.0f - 4.0f * m * m);
+void drawHangers(float yBase, float x0, float x1, float sag, float z, float deckY, float spacing)
+{
+    glDisable(GL_LIGHTING);
+    glLineWidth(3.0f);
+    glColor4f(0.13f, 0.55f, 0.78f, 0.95f);
+
+    glBegin(GL_LINES);
+    for (float x = x0; x <= x1 + 0.001f; x += spacing) {
+        float t = (x - x0) / (x1 - x0);
+        float y = cableY(t, yBase, sag);
         glVertex3f(x, y, z);
+        glVertex3f(x, deckY, z);
     }
     glEnd();
 
     glEnable(GL_LIGHTING);
 }
 
+void drawBeamBox(float x0, float x1, float y0, float y1, float z0, float z1)
+{
+    glPushMatrix();
+    glTranslatef((x0 + x1) * 0.5f, (y0 + y1) * 0.5f, (z0 + z1) * 0.5f);
+    drawBox(fabsf(x1 - x0), fabsf(y1 - y0), fabsf(z1 - z0));
+    glPopMatrix();
+}
+
+void drawDeckGirders(float x0, float x1, float deckY, float deckWidth)
+{
+    float girderH = 1.2f;
+    float girderT = 0.20f;
+    float zIn = deckWidth * 0.52f;
+    float zOut = deckWidth * 0.60f;
+
+    // longitudinal side girders
+    glColor3f(0.22f, 0.25f, 0.29f);
+    drawBeamBox(x0, x1, deckY, deckY + girderH, zIn, zOut);
+    drawBeamBox(x0, x1, deckY, deckY + girderH, -zOut, -zIn);
+
+    // posts every bay
+    float step = 3.0f;
+    for (float x = x0; x <= x1 + 0.001f; x += step) {
+        drawBeamBox(x - 0.10f, x + 0.10f, deckY, deckY + girderH, zIn, zOut);
+        drawBeamBox(x - 0.10f, x + 0.10f, deckY, deckY + girderH, -zOut, -zIn);
+    }
+
+    // diagonals (hinted)
+    glColor3f(0.18f, 0.20f, 0.23f);
+    for (float x = x0; x < x1 - step; x += step * 2.0f) {
+        // small end caps
+        drawBeamBox(x, x + 0.15f, deckY, deckY + girderH, zIn, zOut);
+        drawBeamBox(x + step - 0.15f, x + step, deckY, deckY + girderH, zIn, zOut);
+
+        // diagonals left/right (approximation with thin boxes)
+        drawBeamBox(x, x + 0.20f, deckY, deckY + girderH, zIn, zIn + girderT);
+        drawBeamBox(x + step - 0.20f, x + step, deckY, deckY + girderH, zOut - girderT, zOut);
+
+        drawBeamBox(x, x + 0.20f, deckY, deckY + girderH, -zOut, -zOut + girderT);
+        drawBeamBox(x + step - 0.20f, x + step, deckY, deckY + girderH, -zIn - girderT, -zIn);
+    }
+}
+
+void drawDashedCenterLine(float len, float z, float y, float dash, float gap)
+{
+    glDisable(GL_LIGHTING);
+    glBegin(GL_QUADS);
+    glColor3f(0.95f, 0.95f, 0.70f);
+    float halfW = 0.06f;
+    float x = -len * 0.5f;
+    while (x < len * 0.5f) {
+        float x0 = x, x1 = fminf(x + dash, len * 0.5f);
+        glVertex3f(x0, y + 0.01f, z - halfW); glVertex3f(x1, y + 0.01f, z - halfW);
+        glVertex3f(x1, y + 0.01f, z + halfW); glVertex3f(x0, y + 0.01f, z + halfW);
+        x += dash + gap;
+    }
+    glEnd();
+    glEnable(GL_LIGHTING);
+}
+
+void drawExpansionJoint(float width, float y)
+{
+    glDisable(GL_LIGHTING);
+    glColor3f(0.05f, 0.05f, 0.06f);
+    glBegin(GL_QUADS);
+    float t = 0.06f;
+    glVertex3f(-t, y + 0.005f, -width * 0.5f); glVertex3f(+t, y + 0.005f, -width * 0.5f);
+    glVertex3f(+t, y + 0.005f, width * 0.5f); glVertex3f(-t, y + 0.005f, width * 0.5f);
+    glEnd();
+    glEnable(GL_LIGHTING);
+}
+
+void drawLampPost()
+{
+    // pole
+    glColor3f(0.18f, 0.18f, 0.20f);
+    glPushMatrix(); drawBox(0.12f, 3.2f, 0.12f); glPopMatrix();
+
+    // head (unlit glow)
+    glDisable(GL_LIGHTING);
+    glColor4f(1.0f, 0.95f, 0.85f, 1.0f);
+    glPushMatrix(); glTranslatef(0.0f, 1.8f, 0.0f); drawBox(0.30f, 0.30f, 0.30f); glPopMatrix();
+    glEnable(GL_LIGHTING);
+}
+
+void placeLamps(float x0, float x1, float deckY, float z)
+{
+    for (float x = x0; x <= x1 + 0.001f; x += 4.0f) {
+        glPushMatrix();
+        glTranslatef(x, deckY + 1.6f, z);
+        drawLampPost();
+        glPopMatrix();
+    }
+}
+
+// original tower
 void drawTower()
 {
     glColor3f(0.75f, 0.72f, 0.65f); drawBox(6.0f, 24.0f, 8.0f);
     glPushMatrix(); glTranslatef(0, 12, 0); glColor3f(0.70f, 0.68f, 0.60f); drawBox(7.0f, 3.0f, 9.0f); glPopMatrix();
     glPushMatrix(); glTranslatef(0, 15.5f, 0); glColor3f(0.55f, 0.52f, 0.45f); drawBox(5.0f, 2.0f, 7.0f); glPopMatrix();
 
-    // draw the decorative arch slightly in front, unlit for a clean overlay
+    // decorative arch slightly in front, unlit for a clean overlay
     glDisable(GL_LIGHTING);
     glColor3f(0.40f, 0.38f, 0.35f);
     glPushMatrix(); glTranslatef(0.0f, -6.0f, 4.01f); drawArch(5.0f, 1.2f, 4.0f, 24, 0.2f); glPopMatrix();
     glEnable(GL_LIGHTING);
 }
 
+// tower with extra decor
+void drawTowerDecor()
+{
+    drawTower(); // base
+
+    // cornice ring
+    glPushMatrix(); glTranslatef(0, 13.2f, 0);
+    glColor3f(0.62f, 0.60f, 0.55f);
+    drawBox(8.0f, 0.6f, 10.0f);
+    glPopMatrix();
+
+    // vertical pilasters (front/back)
+    glColor3f(0.70f, 0.68f, 0.62f);
+    for (int i = 0; i < 3; i++) {
+        float off = -2.0f + i * 2.0f;
+        glPushMatrix(); glTranslatef(off, 0.0f, 4.1f); drawBox(0.4f, 24.0f, 0.2f); glPopMatrix();
+        glPushMatrix(); glTranslatef(off, 0.0f, -4.1f); drawBox(0.4f, 24.0f, 0.2f); glPopMatrix();
+    }
+}
+
+void drawPier(float x, float y, float z, float w, float h, float d)
+{
+    glPushMatrix(); glTranslatef(x, y, z);
+    glColor3f(0.55f, 0.53f, 0.50f);  drawBox(w, h, d);
+    glColor3f(0.48f, 0.46f, 0.43f);  drawBox(w * 1.1f, 0.4f, d * 1.1f); // cap
+    glPopMatrix();
+}
+
+void drawWater(float x, float z, float w, float d)
+{
+    // animated ripples using a light mesh
+    const int nx = 48, nz = 24; // keep modest for perf
+    const float amp = 0.10f;    // wave height
+    const float y0 = -9.95f;
+
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glColor4f(0.30f, 0.65f, 0.90f, 0.90f);
+
+    float x0 = x - w * 0.5f, z0 = z - d * 0.5f;
+    float dx = w / nx, dz = d / nz;
+
+    for (int j = 0; j < nz; ++j) {
+        float zA = z0 + j * dz;
+        float zB = z0 + (j + 1) * dz;
+
+        glBegin(GL_TRIANGLE_STRIP);
+        for (int i = 0; i <= nx; ++i) {
+            float xx = x0 + i * dx;
+            float yA = y0 + sinf(xx * 0.25f + gTime * 0.8f) * amp + cosf(zA * 0.30f + gTime * 0.6f) * amp * 0.5f;
+            float yB = y0 + sinf(xx * 0.25f + gTime * 0.8f) * amp + cosf(zB * 0.30f + gTime * 0.6f) * amp * 0.5f;
+
+            glVertex3f(xx, yA, zA);
+            glVertex3f(xx, yB, zB);
+        }
+        glEnd();
+    }
+
+    glDisable(GL_BLEND);
+    glEnable(GL_LIGHTING);
+}
+
+// road pieces
 void drawRoadFixed(float length, float width, float thick)
 {
     glColor3f(0.30f, 0.33f, 0.37f); drawBox(length, thick, width);
     glColor3f(0.20f, 0.55f, 0.75f);
-    glPushMatrix(); glTranslatef(0, thick * 0.6f, width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
-    glPushMatrix(); glTranslatef(0, thick * 0.6f, -width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
+    //glPushMatrix(); glTranslatef(0, thick * 0.6f, width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
+    //glPushMatrix(); glTranslatef(0, thick * 0.6f, -width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
+
+    // dashed center on fixed segment
+    drawDashedCenterLine(length, 0.0f, +thick * 0.5f, 0.8f, 0.5f);
 }
 
 void drawBasculeLeaf(bool leftSide, float angleDeg,
@@ -133,43 +316,77 @@ void drawBasculeLeaf(bool leftSide, float angleDeg,
     glRotatef(-dir * angleDeg, 0.0f, 0.0f, 1.0f);  // rotate around hinge
     glTranslatef(-dir * (length * 0.5f), 0.0f, 0.0f); // place box so inner end sits at hinge
 
+    // deck
     glColor3f(0.32f, 0.35f, 0.39f);
     drawBox(length, thick, width);
 
-    // railings
-    glColor3f(0.18f, 0.50f, 0.70f);
-    glPushMatrix(); glTranslatef(0.0f, thick * 0.6f, width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
-    glPushMatrix(); glTranslatef(0.0f, thick * 0.6f, -width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
+    // (rails removed)
+
+    // lane markings for the leaf
+    drawDashedCenterLine(length, 0.0f, +thick * 0.5f, 0.8f, 0.5f);
+
+    // stiffening girders for the leaf (local space)
+    drawDeckGirders(-length * 0.5f, +length * 0.5f, +thick * 0.5f, width);
 
     glPopMatrix();
 }
 
 void drawBridge()
 {
-    // subtle grid on ground, just above the plane to avoid z-fighting
-    glPushMatrix(); glTranslatef(0, -9.89f, 0); drawGridXZ(80.0f, 80.0f, 4.0f); glPopMatrix();
+    // optional debug grid (press 'G' to toggle — see globals/WM_KEYDOWN)
+    if (gShowGrid) {
+        glPushMatrix(); glTranslatef(0, -9.89f, 0);
+        drawGridXZ(80.0f, 80.0f, 4.0f);
+        glPopMatrix();
+    }
 
-    glColor3f(0.02f, 0.10f, 0.20f);
-    glPushMatrix(); glTranslatef(0, -10, 0); drawBox(140.0f, 0.2f, 80.0f); glPopMatrix();
+    // WATER first (this is the “ground” now)
+    drawWater(0, 0, 160.0f, 80.0f);  // wider so it fills the view
 
-    glPushMatrix(); glTranslatef(-18.0f, 2.0f, 0.0f); drawTower(); glPopMatrix();
-    glPushMatrix(); glTranslatef(18.0f, 2.0f, 0.0f); drawTower(); glPopMatrix();
+    // PIERS sitting in the water
+    drawPier(-18.0f, -4.0f, 0.0f, 10.0f, 12.0f, 12.0f);
+    drawPier(18.0f, -4.0f, 0.0f, 10.0f, 12.0f, 12.0f);
 
+    // *** REMOVED the dark ground plate that used to make things look darker ***
+    // glColor3f(0.02f, 0.10f, 0.20f);
+    // glPushMatrix(); glTranslatef(0, -10, 0); drawBox(140.0f, 0.2f, 80.0f); glPopMatrix();
+
+    // towers with decor
+    glPushMatrix(); glTranslatef(-18.0f, 2.0f, 0.0f); drawTowerDecor(); glPopMatrix();
+    glPushMatrix(); glTranslatef(18.0f, 2.0f, 0.0f); drawTowerDecor(); glPopMatrix();
+
+    // top cross member
     glPushMatrix(); glTranslatef(0, 14.5f, 0);
     glColor3f(0.70f, 0.74f, 0.78f); drawBox(28.0f, 1.5f, 6.0f);
     glColor3f(0.20f, 0.55f, 0.75f); drawBox(28.5f, 0.3f, 6.6f);
     glPopMatrix();
 
+    // fixed road sections
     glPushMatrix(); glTranslatef(-12.0f, -1.0f, 0.0f); drawRoadFixed(12.0f, 6.0f, 1.0f); glPopMatrix(); // -18..-6
     glPushMatrix(); glTranslatef(12.0f, -1.0f, 0.0f); drawRoadFixed(12.0f, 6.0f, 1.0f); glPopMatrix();  //  +6..+18
 
+    // expansion joints at hinge interfaces (world space)
+    glPushMatrix(); glTranslatef(-6.0f, -0.5f, 0.0f); drawExpansionJoint(6.0f, 0.0f); glPopMatrix();
+    glPushMatrix(); glTranslatef(6.0f, -0.5f, 0.0f); drawExpansionJoint(6.0f, 0.0f); glPopMatrix();
+
+    // bascule leaves
     glPushMatrix(); glTranslatef(0, -1, 0);
-    drawBasculeLeaf(true, gBascule, -6.0f, 6.0f, 6.0f, 1.0f);  // left leaf, hinge at x = -6
-    drawBasculeLeaf(false, gBascule, 6.0f, 6.0f, 6.0f, 1.0f);  // right leaf, hinge at x = +6
+    drawBasculeLeaf(true, gBascule, -6.0f, 6.0f, 6.0f, 1.0f);
+    drawBasculeLeaf(false, gBascule, 6.0f, 6.0f, 6.0f, 1.0f);
     glPopMatrix();
 
-    drawCable(10.0f, -18.0f, 18.0f, 5.0f, 40, 3.2f);
-    drawCable(10.0f, -18.0f, 18.0f, 5.0f, 40, -3.2f);
+    // hangers from cables to deck
+    float deckTopY = -0.5f; // fixed/bascule top in world space when closed
+
+    // deck girders for fixed spans (world space)
+    drawDeckGirders(-18.0f, -6.0f, deckTopY, 6.0f);
+    drawDeckGirders(6.0f, 18.0f, deckTopY, 6.0f);
+
+    // lamps
+    placeLamps(-18.0f, -6.0f, deckTopY, 3.6f);
+    placeLamps(6.0f, 18.0f, deckTopY, 3.6f);
+    placeLamps(-18.0f, -6.0f, deckTopY, -3.6f);
+    placeLamps(6.0f, 18.0f, deckTopY, -3.6f);
 }
 
 // ---------------- Camera/Projection ----------------
@@ -250,6 +467,7 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
         case 'E': gPitch -= 3.0f; if (gPitch < -85) gPitch = -85; break;
         case 'W': gDist -= 2.0f; if (gDist < 8.0f) gDist = 8.0f; break;
         case 'S': gDist += 2.0f; break;
+        case 'G': gShowGrid = !gShowGrid; break;
 
             // bascule animation / manual
         case ' ': gAnim = !gAnim; break;
@@ -292,7 +510,7 @@ bool initPixelFormat(HDC hdc)
         return false;
 }
 
-// ---------------- New styling init ----------------
+// ---------------- Visual styling init ----------------
 void initGLStyling()
 {
     glEnable(GL_DEPTH_TEST);
@@ -318,7 +536,7 @@ void initGLStyling()
 
     GLfloat ambient[] = { 0.18f, 0.18f, 0.20f, 1.0f };
     GLfloat diffuse[] = { 0.85f, 0.80f, 0.75f, 1.0f };
-    GLfloat specular[] = { 0.10f, 0.10f, 0.10f, 1.0f };
+    GLfloat specular[] = { 0.18f, 0.18f, 0.18f, 1.0f }; // a touch more specular for steel pop
     GLfloat pos[] = { -0.4f, 0.8f, 0.45f, 0.0f }; // directional
 
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
@@ -329,10 +547,11 @@ void initGLStyling()
     // Subtle fog (depth cue)
     glEnable(GL_FOG);
     glFogi(GL_FOG_MODE, GL_EXP2);
-    GLfloat fogColor[4] = { 0.65f, 0.80f, 0.95f, 1.0f };
+    GLfloat fogColor[4] = { 0.78f, 0.90f, 1.00f, 1.0f };
     glFogfv(GL_FOG_COLOR, fogColor);
-    glFogf(GL_FOG_DENSITY, 0.010f);
+    glFogf(GL_FOG_DENSITY, 0.006f);
     glHint(GL_FOG_HINT, GL_NICEST);
+
 
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 }
@@ -367,11 +586,11 @@ void drawBackground()
     glLoadIdentity();
 
     glBegin(GL_QUADS);
-    // bottom (near ground horizon)
-    glColor3f(0.1f, 0.15f, 0.25f);
+    // horizon – lighter
+    glColor3f(0.78f, 0.90f, 1.00f);
     glVertex2f(-1, -1); glVertex2f(1, -1);
-    // top (sky deeper blue)
-    glColor3f(0.02f, 0.03f, 0.08f);
+    // zenith – soft blue
+    glColor3f(0.62f, 0.82f, 0.98f);
     glVertex2f(1, 1); glVertex2f(-1, 1);
     glEnd();
 
@@ -387,6 +606,10 @@ void drawBackground()
 // ---------------- Display ----------------
 void display()
 {
+    static DWORD t0 = GetTickCount();
+    DWORD tNow = GetTickCount();
+    gTime = (tNow - t0) * 0.001f; // seconds
+
     // animate bascules
     if (gAnim) {
         gBascule += gBasculeDir * 0.8f; // speed
@@ -440,7 +663,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     HGLRC hglrc = wglCreateContext(hdc);
     if (!wglMakeCurrent(hdc, hglrc)) return false;
 
-    // --- NEW: visual styling init ---
+    // visual styling init
     initGLStyling();
 
     ShowWindow(hWnd, nCmdShow);
