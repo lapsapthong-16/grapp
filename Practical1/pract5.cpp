@@ -1,5 +1,4 @@
-﻿
-#include <Windows.h>
+﻿#include <Windows.h>
 #include <gl/GL.h>
 #include <math.h>
 
@@ -26,6 +25,11 @@ static POINT gLastMouse = { 0,0 };
 
 static inline float deg2rad(float a) { return a * 3.1415926535f / 180.0f; }
 
+// --- NEW: forward decls ---
+void initGLStyling();
+void drawGridXZ(float halfX, float halfZ, float step);
+
+// ---------------- Projection ----------------
 void setPerspective(float fovY_deg, float aspect, float zNear, float zFar)
 {
     float top = zNear * tanf(deg2rad(fovY_deg * 0.5f));
@@ -35,25 +39,38 @@ void setPerspective(float fovY_deg, float aspect, float zNear, float zFar)
     glFrustum(left, right, bottom, top, zNear, zFar);
 }
 
+// ---------------- Geometry ----------------
 void drawBox(float w, float h, float d)
 {
     float x = w * 0.5f, y = h * 0.5f, z = d * 0.5f;
     glBegin(GL_QUADS);
+    // +X
+    glNormal3f(1, 0, 0);
     glVertex3f(x, -y, -z); glVertex3f(x, y, -z); glVertex3f(x, y, z); glVertex3f(x, -y, z);
+    // -X
+    glNormal3f(-1, 0, 0);
     glVertex3f(-x, -y, z); glVertex3f(-x, y, z); glVertex3f(-x, y, -z); glVertex3f(-x, -y, -z);
+    // +Y
+    glNormal3f(0, 1, 0);
     glVertex3f(-x, y, -z); glVertex3f(-x, y, z); glVertex3f(x, y, z); glVertex3f(x, y, -z);
+    // -Y
+    glNormal3f(0, -1, 0);
     glVertex3f(-x, -y, z); glVertex3f(-x, -y, -z); glVertex3f(x, -y, -z); glVertex3f(x, -y, z);
+    // +Z
+    glNormal3f(0, 0, 1);
     glVertex3f(-x, -y, z); glVertex3f(x, -y, z); glVertex3f(x, y, z); glVertex3f(-x, y, z);
+    // -Z
+    glNormal3f(0, 0, -1);
     glVertex3f(x, -y, -z); glVertex3f(-x, -y, -z); glVertex3f(-x, y, -z); glVertex3f(x, y, -z);
     glEnd();
 }
 
-// XZ arch strip (for tower openings)
+// XZ arch strip (for tower openings) — keep original shape
 void drawArch(float radius, float thickness, float span, int steps, float depth)
 {
     float z0 = -depth * 0.5f, z1 = depth * 0.5f;
     glBegin(GL_QUAD_STRIP);
-    for (int i = 0;i <= steps;i++) {
+    for (int i = 0; i <= steps; i++) {
         float t = (float)i / steps;
         float x = -span * 0.5f + t * span;
         float a = acosf(fminf(1.0f, fmaxf(-1.0f, x / radius)));
@@ -67,8 +84,13 @@ void drawArch(float radius, float thickness, float span, int steps, float depth)
 
 void drawCable(float yBase, float x0, float x1, float sag, int steps, float z)
 {
+    // draw as nice antialiased lines, unlit
+    glDisable(GL_LIGHTING);
+    glLineWidth(2.0f);
+    glColor4f(0.15f, 0.65f, 0.85f, 0.9f);
+
     glBegin(GL_LINE_STRIP);
-    for (int i = 0;i <= steps;i++) {
+    for (int i = 0; i <= steps; i++) {
         float t = (float)i / steps;
         float x = x0 + t * (x1 - x0);
         float m = (t - 0.5f);
@@ -76,6 +98,8 @@ void drawCable(float yBase, float x0, float x1, float sag, int steps, float z)
         glVertex3f(x, y, z);
     }
     glEnd();
+
+    glEnable(GL_LIGHTING);
 }
 
 void drawTower()
@@ -84,10 +108,11 @@ void drawTower()
     glPushMatrix(); glTranslatef(0, 12, 0); glColor3f(0.70f, 0.68f, 0.60f); drawBox(7.0f, 3.0f, 9.0f); glPopMatrix();
     glPushMatrix(); glTranslatef(0, 15.5f, 0); glColor3f(0.55f, 0.52f, 0.45f); drawBox(5.0f, 2.0f, 7.0f); glPopMatrix();
 
-    glDisable(GL_DEPTH_TEST);
+    // draw the decorative arch slightly in front, unlit for a clean overlay
+    glDisable(GL_LIGHTING);
     glColor3f(0.40f, 0.38f, 0.35f);
     glPushMatrix(); glTranslatef(0.0f, -6.0f, 4.01f); drawArch(5.0f, 1.2f, 4.0f, 24, 0.2f); glPopMatrix();
-    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
 }
 
 void drawRoadFixed(float length, float width, float thick)
@@ -104,9 +129,9 @@ void drawBasculeLeaf(bool leftSide, float angleDeg,
     float dir = leftSide ? -1.0f : +1.0f;
 
     glPushMatrix();
-    glTranslatef(hingeX, 0.0f, 0.0f);          // move to hinge position
-    glRotatef(-dir * angleDeg, 0.0f, 0.0f, 1.0f); // rotate around hinge
-    glTranslatef(-dir * (length * 0.5f), 0.0f, 0.0f); // place box so its inner end sits at the hinge
+    glTranslatef(hingeX, 0.0f, 0.0f);              // move to hinge position
+    glRotatef(-dir * angleDeg, 0.0f, 0.0f, 1.0f);  // rotate around hinge
+    glTranslatef(-dir * (length * 0.5f), 0.0f, 0.0f); // place box so inner end sits at hinge
 
     glColor3f(0.32f, 0.35f, 0.39f);
     drawBox(length, thick, width);
@@ -121,6 +146,9 @@ void drawBasculeLeaf(bool leftSide, float angleDeg,
 
 void drawBridge()
 {
+    // subtle grid on ground, just above the plane to avoid z-fighting
+    glPushMatrix(); glTranslatef(0, -9.89f, 0); drawGridXZ(80.0f, 80.0f, 4.0f); glPopMatrix();
+
     glColor3f(0.02f, 0.10f, 0.20f);
     glPushMatrix(); glTranslatef(0, -10, 0); drawBox(140.0f, 0.2f, 80.0f); glPopMatrix();
 
@@ -133,18 +161,18 @@ void drawBridge()
     glPopMatrix();
 
     glPushMatrix(); glTranslatef(-12.0f, -1.0f, 0.0f); drawRoadFixed(12.0f, 6.0f, 1.0f); glPopMatrix(); // -18..-6
-    glPushMatrix(); glTranslatef(12.0f, -1.0f, 0.0f); drawRoadFixed(12.0f, 6.0f, 1.0f); glPopMatrix(); //  +6..+18
+    glPushMatrix(); glTranslatef(12.0f, -1.0f, 0.0f); drawRoadFixed(12.0f, 6.0f, 1.0f); glPopMatrix();  //  +6..+18
 
     glPushMatrix(); glTranslatef(0, -1, 0);
     drawBasculeLeaf(true, gBascule, -6.0f, 6.0f, 6.0f, 1.0f);  // left leaf, hinge at x = -6
     drawBasculeLeaf(false, gBascule, 6.0f, 6.0f, 6.0f, 1.0f);  // right leaf, hinge at x = +6
     glPopMatrix();
 
-    glColor3f(0.15f, 0.65f, 0.85f);
     drawCable(10.0f, -18.0f, 18.0f, 5.0f, 40, 3.2f);
     drawCable(10.0f, -18.0f, 18.0f, 5.0f, 40, -3.2f);
 }
 
+// ---------------- Camera/Projection ----------------
 void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspective)
 {
     glViewport(vpX, vpY, vpW, vpH);
@@ -153,7 +181,7 @@ void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspecti
     glLoadIdentity();
     float aspect = (vpH == 0) ? 1.0f : (float)vpW / (float)vpH;
 
-    if (perspective) setPerspective(45.0f, aspect, 0.5f, 500.0f);
+    if (perspective) setPerspective(55.0f, aspect, 0.5f, 500.0f); // slightly wider FOV for presence
     else             glOrtho(-30.0f * aspect, 30.0f * aspect, -20.0f, 20.0f, -500.0f, 500.0f);
 
     glMatrixMode(GL_MODELVIEW);
@@ -164,7 +192,7 @@ void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspecti
     glTranslatef(0, -3, 0);
 }
 
-
+// ---------------- Win32 WndProc ----------------
 LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -238,38 +266,125 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+
+// ---------------- Pixel Format ----------------
 bool initPixelFormat(HDC hdc)
 {
-	PIXELFORMATDESCRIPTOR pfd;
-	ZeroMemory(&pfd, sizeof(PIXELFORMATDESCRIPTOR));
+    PIXELFORMATDESCRIPTOR pfd;
+    ZeroMemory(&pfd, sizeof(PIXELFORMATDESCRIPTOR));
 
-	pfd.cAlphaBits = 8;
-	pfd.cColorBits = 32;
-	pfd.cDepthBits = 24;
-	pfd.cStencilBits = 0;
+    pfd.cAlphaBits = 8;
+    pfd.cColorBits = 32;
+    pfd.cDepthBits = 24;
+    pfd.cStencilBits = 0;
 
-	pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;
+    pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;
 
-	pfd.iLayerType = PFD_MAIN_PLANE;
-	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
-	pfd.nVersion = 1;
+    pfd.iLayerType = PFD_MAIN_PLANE;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    pfd.nVersion = 1;
 
-	// choose pixel format returns the number most similar pixel format available
-	int n = ChoosePixelFormat(hdc, &pfd);
-
-	// set pixel format returns whether it sucessfully set the pixel format
-	if (SetPixelFormat(hdc, n, &pfd))
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+    int n = ChoosePixelFormat(hdc, &pfd);
+    if (SetPixelFormat(hdc, n, &pfd))
+        return true;
+    else
+        return false;
 }
-//--------------------------------------------------------------------
 
+// ---------------- New styling init ----------------
+void initGLStyling()
+{
+    glEnable(GL_DEPTH_TEST);
+    glShadeModel(GL_SMOOTH);
+
+    // AA lines for cables
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_LINE_SMOOTH);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+    // Face culling for consistent winding
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
+    // Basic lighting; glColor controls material (ambient+diffuse)
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+
+    GLfloat ambient[] = { 0.18f, 0.18f, 0.20f, 1.0f };
+    GLfloat diffuse[] = { 0.85f, 0.80f, 0.75f, 1.0f };
+    GLfloat specular[] = { 0.10f, 0.10f, 0.10f, 1.0f };
+    GLfloat pos[] = { -0.4f, 0.8f, 0.45f, 0.0f }; // directional
+
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+    glLightfv(GL_LIGHT0, GL_POSITION, pos);
+
+    // Subtle fog (depth cue)
+    glEnable(GL_FOG);
+    glFogi(GL_FOG_MODE, GL_EXP2);
+    GLfloat fogColor[4] = { 0.65f, 0.80f, 0.95f, 1.0f };
+    glFogfv(GL_FOG_COLOR, fogColor);
+    glFogf(GL_FOG_DENSITY, 0.010f);
+    glHint(GL_FOG_HINT, GL_NICEST);
+
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+}
+
+// ---------------- Grid helper ----------------
+void drawGridXZ(float halfX, float halfZ, float step)
+{
+    glDisable(GL_LIGHTING);
+    glColor4f(1, 1, 1, 0.08f);
+    glLineWidth(1.0f);
+    glBegin(GL_LINES);
+    for (float x = -halfX; x <= halfX; x += step) {
+        glVertex3f(x, 0, -halfZ); glVertex3f(x, 0, halfZ);
+    }
+    for (float z = -halfZ; z <= halfZ; z += step) {
+        glVertex3f(-halfX, 0, z); glVertex3f(halfX, 0, z);
+    }
+    glEnd();
+    glEnable(GL_LIGHTING);
+}
+
+void drawBackground()
+{
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glBegin(GL_QUADS);
+    // bottom (near ground horizon)
+    glColor3f(0.1f, 0.15f, 0.25f);
+    glVertex2f(-1, -1); glVertex2f(1, -1);
+    // top (sky deeper blue)
+    glColor3f(0.02f, 0.03f, 0.08f);
+    glVertex2f(1, 1); glVertex2f(-1, 1);
+    glEnd();
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_DEPTH_TEST);
+}
+
+// ---------------- Display ----------------
 void display()
 {
     // animate bascules
@@ -279,9 +394,9 @@ void display()
         if (gBascule < 0.0f) { gBascule = 0.0f; gBasculeDir = +1.0f; }
     }
 
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.02f, 0.02f, 0.03f, 1.0f);
+    glClearColor(0.65f, 0.80f, 0.95f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawBackground();
 
     int W = gClient.right, H = gClient.bottom;
     if (W <= 0 || H <= 0) { W = 800; H = 600; }
@@ -299,64 +414,55 @@ void display()
 
     glFlush();
 }
+
+// ---------------- WinMain ----------------
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 {
-	WNDCLASSEX wc;
-	ZeroMemory(&wc, sizeof(WNDCLASSEX));
+    WNDCLASSEX wc;
+    ZeroMemory(&wc, sizeof(WNDCLASSEX));
 
-	wc.cbSize = sizeof(WNDCLASSEX);
-	wc.hInstance = GetModuleHandle(NULL);
-	wc.lpfnWndProc = WindowProcedure;
-	wc.lpszClassName = WINDOW_TITLE;
-	wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.cbSize = sizeof(WNDCLASSEX);
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.lpfnWndProc = WindowProcedure;
+    wc.lpszClassName = WINDOW_TITLE;
+    wc.style = CS_HREDRAW | CS_VREDRAW;
 
-	if (!RegisterClassEx(&wc)) return false;
+    if (!RegisterClassEx(&wc)) return false;
 
-	HWND hWnd = CreateWindow(WINDOW_TITLE, WINDOW_TITLE, WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
-		NULL, NULL, wc.hInstance, NULL);
+    HWND hWnd = CreateWindow(WINDOW_TITLE, WINDOW_TITLE, WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        NULL, NULL, wc.hInstance, NULL);
 
-	//--------------------------------
-	//	Initialize window for OpenGL
-	//--------------------------------
+    // Initialize window for OpenGL
+    HDC hdc = GetDC(hWnd);
+    initPixelFormat(hdc);
 
-	HDC hdc = GetDC(hWnd);
+    HGLRC hglrc = wglCreateContext(hdc);
+    if (!wglMakeCurrent(hdc, hglrc)) return false;
 
-	//	initialize pixel format for the window
-	initPixelFormat(hdc);
+    // --- NEW: visual styling init ---
+    initGLStyling();
 
-	//	get an openGL context
-	HGLRC hglrc = wglCreateContext(hdc);
+    ShowWindow(hWnd, nCmdShow);
 
-	//	make context current
-	if (!wglMakeCurrent(hdc, hglrc)) return false;
+    MSG msg;
+    ZeroMemory(&msg, sizeof(msg));
 
-	//--------------------------------
-	//	End initialization
-	//--------------------------------
+    while (true)
+    {
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT) break;
 
-	ShowWindow(hWnd, nCmdShow);
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
 
-	MSG msg;
-	ZeroMemory(&msg, sizeof(msg));
+        display();
+        SwapBuffers(hdc);
+    }
 
-	while (true)
-	{
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-		{
-			if (msg.message == WM_QUIT) break;
+    UnregisterClass(WINDOW_TITLE, wc.hInstance);
 
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-
-		display();
-
-		SwapBuffers(hdc);
-	}
-
-	UnregisterClass(WINDOW_TITLE, wc.hInstance);
-
-	return true;
+    return true;
 }
-//--------------------------------------------------------------------
