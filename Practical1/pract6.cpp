@@ -1,20 +1,43 @@
 #include <Windows.h>
 #include <gl/GL.h>
 #include <gl/GLU.h>
+#include <cmath>
 
 #pragma comment (lib, "OpenGL32.lib")
 #pragma comment (lib, "Glu32.lib")
 
 #define WINDOW_TITLE "OpenGL Window"
 
-// -------------------- Globals & Helpers --------------------
+// -------------------- Globals --------------------
 enum Shape { SHAPE_SPHERE, SHAPE_PYRAMID };
 Shape gShape = SHAPE_SPHERE;
 
 bool  gLightOn = true;
-float gAngle = 0.0f;              // rotation about all axes
+float gAngle = 0.0f;                      // rotation about all axes
 float gLightPos[4] = { 0.0f, 0.0f, 2.0f, 1.0f }; // x,y,z,w(=1 positional)
 
+int gWinW = 800, gWinH = 600;               // current window size
+
+// -------------------- Math helpers --------------------
+struct Vec3 { float x, y, z; };
+static inline Vec3 sub(const Vec3& a, const Vec3& b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
+static inline Vec3 cross(const Vec3& a, const Vec3& b) {
+    return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
+}
+static inline Vec3 normalize(const Vec3& v) {
+    float m = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    if (m == 0) return { 0,0,0 };
+    return { v.x / m, v.y / m, v.z / m };
+}
+static inline void emitTriWithNormal(const Vec3& A, const Vec3& B, const Vec3& C) {
+    Vec3 n = normalize(cross(sub(B, A), sub(C, A)));
+    glNormal3f(n.x, n.y, n.z);
+    glVertex3f(A.x, A.y, A.z);
+    glVertex3f(B.x, B.y, B.z);
+    glVertex3f(C.x, C.y, C.z);
+}
+
+// -------------------- Drawing --------------------
 void drawSphere()
 {
     static GLUquadric* quad = nullptr;
@@ -25,44 +48,42 @@ void drawSphere()
 
 void drawPyramid()
 {
-    // A 4-sided pyramid centered at origin, base on y = -1, apex at y = 1.2
+    const float s = 1.2f;
+    const float yTop = 1.2f;
+    const float yBase = -1.0f;
+
+    Vec3 apex = { 0.0f, yTop, 0.0f };
+    Vec3 bl = { -s,    yBase,  s }; // base left-front  (-x, -y, +z)
+    Vec3 br = { s,    yBase,  s };
+    Vec3 brb = { s,    yBase, -s };
+    Vec3 blb = { -s,    yBase, -s };
+
+    // Side faces (CCW when viewed from outside)
     glBegin(GL_TRIANGLES);
-    // Front face (normal approx)
-    glNormal3f(0.0f, 0.6f, 0.8f);
-    glVertex3f(0.0f, 1.2f, 0.0f); // apex
-    glVertex3f(-1.2f, -1.0f, 1.2f);
-    glVertex3f(1.2f, -1.0f, 1.2f);
-
-    // Right face
-    glNormal3f(0.8f, 0.6f, 0.0f);
-    glVertex3f(0.0f, 1.2f, 0.0f);
-    glVertex3f(1.2f, -1.0f, 1.2f);
-    glVertex3f(1.2f, -1.0f, -1.2f);
-
-    // Back face
-    glNormal3f(0.0f, 0.6f, -0.8f);
-    glVertex3f(0.0f, 1.2f, 0.0f);
-    glVertex3f(1.2f, -1.0f, -1.2f);
-    glVertex3f(-1.2f, -1.0f, -1.2f);
-
-    // Left face
-    glNormal3f(-0.8f, 0.6f, 0.0f);
-    glVertex3f(0.0f, 1.2f, 0.0f);
-    glVertex3f(-1.2f, -1.0f, -1.2f);
-    glVertex3f(-1.2f, -1.0f, 1.2f);
+    emitTriWithNormal(apex, bl, br); // front
+    emitTriWithNormal(apex, br, brb); // right
+    emitTriWithNormal(apex, brb, blb); // back
+    emitTriWithNormal(apex, blb, bl); // left
     glEnd();
 
     // Base (two triangles, facing downward)
     glBegin(GL_TRIANGLES);
-    glNormal3f(0.0f, -1.0f, 0.0f);
-    glVertex3f(-1.2f, -1.0f, 1.2f);
-    glVertex3f(1.2f, -1.0f, 1.2f);
-    glVertex3f(1.2f, -1.0f, -1.2f);
-
-    glVertex3f(-1.2f, -1.0f, 1.2f);
-    glVertex3f(1.2f, -1.0f, -1.2f);
-    glVertex3f(-1.2f, -1.0f, -1.2f);
+    emitTriWithNormal(bl, br, brb);
+    emitTriWithNormal(bl, brb, blb);
     glEnd();
+}
+
+// Light position marker (tiny sphere)
+void drawLightMarker()
+{
+    glPushMatrix();
+    glTranslatef(gLightPos[0], gLightPos[1], gLightPos[2]);
+    glDisable(GL_LIGHTING);
+    static GLUquadric* q = nullptr; if (!q) q = gluNewQuadric();
+    glColor3f(1.f, 0.f, 0.f);
+    gluSphere(q, 0.06, 12, 10);
+    glEnable(GL_LIGHTING);
+    glPopMatrix();
 }
 
 // -------------------- Windows / Input --------------------
@@ -73,6 +94,15 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+
+    case WM_SIZE:
+    {
+        gWinW = LOWORD(lParam);
+        gWinH = HIWORD(lParam);
+        if (gWinH == 0) gWinH = 1;
+        glViewport(0, 0, gWinW, gWinH);
+    }
+    break;
 
     case WM_KEYDOWN:
     {
@@ -128,8 +158,8 @@ bool initPixelFormat(HDC hdc)
     int n = ChoosePixelFormat(hdc, &pfd);
     return SetPixelFormat(hdc, n, &pfd) ? true : false;
 }
-//--------------------------------------------------------------------
 
+// One-time GL state
 void setupOnce()
 {
     static bool done = false;
@@ -137,82 +167,85 @@ void setupOnce()
     done = true;
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);           // optional polish
+    glCullFace(GL_BACK);
 
-    // Material: neutral grey/white so red diffuse light shows clearly
-    GLfloat matDiffuse[] = { 0.8f, 0.8f, 0.8f, 1.0f };
-    GLfloat matAmbient[] = { 0.2f, 0.2f, 0.2f, 1.0f };
-    GLfloat matSpecular[] = { 0.1f, 0.1f, 0.1f, 1.0f };
-    GLfloat shininess = 16.0f;
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, matDiffuse);
+    glShadeModel(GL_SMOOTH);
+    glEnable(GL_NORMALIZE);           // keep normals unit length after transforms
+
+    // Scene/global ambient (very subtle so red diffuse dominates)
+    GLfloat globalAmbient[] = { 0.05f, 0.05f, 0.05f, 1.0f };
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, globalAmbient);
+
+    // Two-sided lighting (nice while object rotates)
+    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+
+    // Material: neutral so red diffuse reads clearly
+    GLfloat matAmbient[] = { 0.18f, 0.18f, 0.18f, 1.0f };
+    GLfloat matDiffuse[] = { 0.85f, 0.85f, 0.85f, 1.0f };
+    GLfloat matSpecular[] = { 0.15f, 0.15f, 0.15f, 1.0f };
+    GLfloat shininess = 24.0f;
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, matAmbient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, matDiffuse);
     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, matSpecular);
     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shininess);
 
-    // Red diffuse light (LIGHT0)
+    // Red diffuse light (LIGHT0) with a little specular + attenuation
     GLfloat lightDiffuse[] = { 1.0f, 0.0f, 0.0f, 1.0f };
     GLfloat lightAmbient[] = { 0.05f, 0.0f, 0.0f, 1.0f };
-    GLfloat lightSpecular[] = { 0.2f, 0.0f, 0.0f, 1.0f };
+    GLfloat lightSpecular[] = { 0.25f, 0.10f, 0.10f, 1.0f };
     glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
     glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
     glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
 
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 1.0f);
+    glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.15f);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.02f);
+
     glClearColor(0.f, 0.f, 0.f, 1.f);
+
+    // Initial viewport matches initial window size
+    glViewport(0, 0, gWinW, gWinH);
 }
 
+//--------------------------------------------------------------------
 void display()
 {
     setupOnce();
 
-    // Basic fixed viewport/projection (800x600)
-    glViewport(0, 0, 800, 600);
+    // Projection (use current aspect)
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0, 800.0 / 600.0, 0.1, 100.0);
+    double aspect = (gWinH == 0) ? 1.0 : (double)gWinW / (double)gWinH;
+    gluPerspective(60.0, aspect, 0.1, 100.0);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // ModelView setup
+    // ModelView
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    glTranslatef(0.0f, 0.0f, -6.0f);   // move scene away from camera
 
-    // Camera at origin looking down -Z, move scene away a bit
-    glTranslatef(0.0f, 0.0f, -6.0f);
+    // Lighting on/off and position
+    if (gLightOn) { glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); }
+    else { glDisable(GL_LIGHT0);  glDisable(GL_LIGHTING); }
 
-    // Lighting on/off & position
-    if (gLightOn) {
-        glEnable(GL_LIGHTING);
-        glEnable(GL_LIGHT0);
-    }
-    else {
-        glDisable(GL_LIGHT0);
-        glDisable(GL_LIGHTING);
-    }
-    glLightfv(GL_LIGHT0, GL_POSITION, gLightPos); // uses current modelview
+    glLightfv(GL_LIGHT0, GL_POSITION, gLightPos); // evaluated in current modelview
 
-    // Draw a small marker for light position (emissive so it's visible)
-    glPushAttrib(GL_LIGHTING_BIT);
-    glDisable(GL_LIGHTING);
-    glPointSize(6.0f);
-    glBegin(GL_POINTS);
-    glVertex3f(gLightPos[0], gLightPos[1], gLightPos[2]);
-    glEnd();
-    glPopAttrib();
+    // Show a small marker where the light is
+    drawLightMarker();
 
     // Apply rotation about all axes
     glRotatef(gAngle, 1.0f, 0.0f, 0.0f);
     glRotatef(gAngle, 0.0f, 1.0f, 0.0f);
     glRotatef(gAngle, 0.0f, 0.0f, 1.0f);
 
-    // Draw selected shape
-    if (gShape == SHAPE_SPHERE) {
-        drawSphere();
-    }
-    else {
-        drawPyramid();
-    }
+    // Draw selected object
+    if (gShape == SHAPE_SPHERE) drawSphere();
+    else                        drawPyramid();
 }
-//--------------------------------------------------------------------
 
+//--------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 {
     WNDCLASSEX wc;
@@ -227,7 +260,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     if (!RegisterClassEx(&wc)) return false;
 
     HWND hWnd = CreateWindow(WINDOW_TITLE, WINDOW_TITLE, WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        CW_USEDEFAULT, CW_USEDEFAULT, gWinW, gWinH,
         NULL, NULL, wc.hInstance, NULL);
 
     // Initialize window for OpenGL
