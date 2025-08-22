@@ -41,6 +41,7 @@ void drawExpansionJoint(float width, float y);
 void drawLampPost();
 void placeLamps(float x0, float x1, float deckY, float z);
 void drawTowerDecor();
+void drawTower();
 void drawPier(float x, float y, float z, float w, float h, float d);
 void drawWater(float x, float z, float w, float d);
 
@@ -137,7 +138,7 @@ void drawDeckGirders(float x0, float x1, float deckY, float deckWidth)
     float zOut = deckWidth * 0.60f;
 
     // longitudinal side girders
-    glColor3f(0.22f, 0.25f, 0.29f);
+    glColor3f(0.20f, 0.24f, 0.28f);
     drawBeamBox(x0, x1, deckY, deckY + girderH, zIn, zOut);
     drawBeamBox(x0, x1, deckY, deckY + girderH, -zOut, -zIn);
 
@@ -149,7 +150,7 @@ void drawDeckGirders(float x0, float x1, float deckY, float deckWidth)
     }
 
     // diagonals (hinted)
-    glColor3f(0.18f, 0.20f, 0.23f);
+    glColor3f(0.16f, 0.18f, 0.21f);
     for (float x = x0; x < x1 - step; x += step * 2.0f) {
         // small end caps
         drawBeamBox(x, x + 0.15f, deckY, deckY + girderH, zIn, zOut);
@@ -193,13 +194,40 @@ void drawExpansionJoint(float width, float y)
     glEnable(GL_LIGHTING);
 }
 
+void drawTowerDecor()
+{
+    // reuse same palette as drawTower
+    const float STONE_L[3] = { 0.88f, 0.85f, 0.79f };
+    const float STONE_M[3] = { 0.78f, 0.74f, 0.68f };
+    const float STONE_D[3] = { 0.62f, 0.58f, 0.53f };
+    const float BRONZE[3] = { 0.35f, 0.30f, 0.23f };
+
+    drawTower(); // build the base tower first
+
+    // cornice ring (slightly wider than capital)
+    glPushMatrix(); glTranslatef(0, 13.2f, 0);
+    glColor3fv(STONE_M);          drawBox(8.2f, 0.6f, 10.2f);
+    glPopMatrix();
+
+    // thin highlight line on the ring
+    glPushMatrix(); glTranslatef(0, 13.55f, 0);
+    glColor3fv(BRONZE);           drawBox(8.4f, 0.15f, 10.4f);
+    glPopMatrix();
+
+    // vertical pilasters again (front/back), lighter than grooves
+    glColor3fv(STONE_D);
+    for (int i = 0; i < 3; ++i) {
+        float off = -2.0f + i * 2.0f;
+        glPushMatrix(); glTranslatef(off, 0.0f, 4.1f); drawBox(0.40f, 24.0f, 0.2f); glPopMatrix();
+        glPushMatrix(); glTranslatef(off, 0.0f, -4.1f); drawBox(0.40f, 24.0f, 0.2f); glPopMatrix();
+    }
+}
+
 void drawLampPost()
 {
-    // pole
     glColor3f(0.18f, 0.18f, 0.20f);
     glPushMatrix(); drawBox(0.12f, 3.2f, 0.12f); glPopMatrix();
 
-    // head (unlit glow)
     glDisable(GL_LIGHTING);
     glColor4f(1.0f, 0.95f, 0.85f, 1.0f);
     glPushMatrix(); glTranslatef(0.0f, 1.8f, 0.0f); drawBox(0.30f, 0.30f, 0.30f); glPopMatrix();
@@ -216,45 +244,70 @@ void placeLamps(float x0, float x1, float deckY, float z)
     }
 }
 
-// original tower
 void drawTower()
 {
-    glColor3f(0.75f, 0.72f, 0.65f); drawBox(6.0f, 24.0f, 8.0f);
-    glPushMatrix(); glTranslatef(0, 12, 0); glColor3f(0.70f, 0.68f, 0.60f); drawBox(7.0f, 3.0f, 9.0f); glPopMatrix();
-    glPushMatrix(); glTranslatef(0, 15.5f, 0); glColor3f(0.55f, 0.52f, 0.45f); drawBox(5.0f, 2.0f, 7.0f); glPopMatrix();
+    // ===== Palette =====
+    const float STONE_L[3] = { 0.88f, 0.85f, 0.79f };   // light stone
+    const float STONE_M[3] = { 0.78f, 0.74f, 0.68f };   // mid stone
+    const float STONE_D[3] = { 0.62f, 0.58f, 0.53f };   // dark stone (grooves)
+    const float BRONZE[3] = { 0.35f, 0.30f, 0.23f };   // bronze trim
+    const float COPPER[3] = { 0.34f, 0.62f, 0.54f };   // patina copper
 
-    // decorative arch slightly in front, unlit for a clean overlay
+    // --- plinth shadow band (subtle color break near base) ---
+    glPushMatrix(); glTranslatef(0.0f, -10.8f, 0.0f);
+    glColor3fv(STONE_D);          drawBox(6.6f, 1.2f, 8.6f);
+    glPopMatrix();
+
+    // --- main shaft ---
+    glColor3fv(STONE_L);          drawBox(6.0f, 24.0f, 8.0f);
+
+    // --- vertical grooves (front & back) for depth ---
+    glColor3fv(STONE_D);
+    for (int i = 0; i < 3; ++i) {
+        float off = -2.0f + i * 2.0f;   // -2, 0, +2
+        glPushMatrix(); glTranslatef(off, 0.0f, 4.05f); drawBox(0.35f, 24.0f, 0.2f); glPopMatrix();
+        glPushMatrix(); glTranslatef(off, 0.0f, -4.05f); drawBox(0.35f, 24.0f, 0.2f); glPopMatrix();
+    }
+
+    // --- capital band (stone) ---
+    glPushMatrix(); glTranslatef(0, 12, 0);
+    glColor3fv(STONE_M);          drawBox(7.2f, 2.6f, 9.2f);
+    glPopMatrix();
+
+    // --- bronze cornice line under the cap ---
+    glPushMatrix(); glTranslatef(0, 14.1f, 0);
+    glColor3fv(BRONZE);           drawBox(7.6f, 0.3f, 9.6f);
+    glPopMatrix();
+
+    // --- stone cap ---
+    glPushMatrix(); glTranslatef(0, 14.5f, 0);
+    glColor3fv(STONE_L);          drawBox(5.0f, 2.0f, 7.0f);
+    glPopMatrix();
+
+    // --- thin copper coping above the cap (color pop!) ---
+    glPushMatrix(); glTranslatef(0, 15.7f, 0);
+    glColor3fv(COPPER);           drawBox(5.6f, 0.35f, 7.6f);
+    glPopMatrix();
+
+    // --- small bronze top block to finish the silhouette ---
+    glPushMatrix(); glTranslatef(0, 16.25f, 0);
+    glColor3fv(BRONZE);           drawBox(4.0f, 0.9f, 5.0f);
+    glPopMatrix();
+
+    // --- decorative arch (unchanged) ---
     glDisable(GL_LIGHTING);
     glColor3f(0.40f, 0.38f, 0.35f);
     glPushMatrix(); glTranslatef(0.0f, -6.0f, 4.01f); drawArch(5.0f, 1.2f, 4.0f, 24, 0.2f); glPopMatrix();
     glEnable(GL_LIGHTING);
 }
 
-// tower with extra decor
-void drawTowerDecor()
-{
-    drawTower(); // base
-
-    // cornice ring
-    glPushMatrix(); glTranslatef(0, 13.2f, 0);
-    glColor3f(0.62f, 0.60f, 0.55f);
-    drawBox(8.0f, 0.6f, 10.0f);
-    glPopMatrix();
-
-    // vertical pilasters (front/back)
-    glColor3f(0.70f, 0.68f, 0.62f);
-    for (int i = 0; i < 3; i++) {
-        float off = -2.0f + i * 2.0f;
-        glPushMatrix(); glTranslatef(off, 0.0f, 4.1f); drawBox(0.4f, 24.0f, 0.2f); glPopMatrix();
-        glPushMatrix(); glTranslatef(off, 0.0f, -4.1f); drawBox(0.4f, 24.0f, 0.2f); glPopMatrix();
-    }
-}
-
 void drawPier(float x, float y, float z, float w, float h, float d)
 {
     glPushMatrix(); glTranslatef(x, y, z);
-    glColor3f(0.55f, 0.53f, 0.50f);  drawBox(w, h, d);
-    glColor3f(0.48f, 0.46f, 0.43f);  drawBox(w * 1.1f, 0.4f, d * 1.1f); // cap
+    glColor3f(0.74f, 0.71f, 0.66f);  // body (lighter stone)
+    drawBox(w, h, d);
+    glColor3f(0.68f, 0.65f, 0.60f);  // cap
+    drawBox(w * 1.1f, 0.4f, d * 1.1f);
     glPopMatrix();
 }
 
@@ -297,12 +350,10 @@ void drawWater(float x, float z, float w, float d)
 // road pieces
 void drawRoadFixed(float length, float width, float thick)
 {
-    glColor3f(0.30f, 0.33f, 0.37f); drawBox(length, thick, width);
+    glColor3f(0.23f, 0.28f, 0.32f);
+    drawBox(length, thick, width);
     glColor3f(0.20f, 0.55f, 0.75f);
-    //glPushMatrix(); glTranslatef(0, thick * 0.6f, width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
-    //glPushMatrix(); glTranslatef(0, thick * 0.6f, -width * 0.55f); drawBox(length, 0.6f, 0.2f); glPopMatrix();
 
-    // dashed center on fixed segment
     drawDashedCenterLine(length, 0.0f, +thick * 0.5f, 0.8f, 0.5f);
 }
 
@@ -333,23 +384,18 @@ void drawBasculeLeaf(bool leftSide, float angleDeg,
 
 void drawBridge()
 {
-    // optional debug grid (press 'G' to toggle — see globals/WM_KEYDOWN)
     if (gShowGrid) {
-        glPushMatrix(); glTranslatef(0, -9.89f, 0);
+        glPushMatrix();
+        glTranslatef(0, -9.89f, 0);
         drawGridXZ(80.0f, 80.0f, 4.0f);
         glPopMatrix();
     }
 
-    // WATER first (this is the “ground” now)
     drawWater(0, 0, 160.0f, 80.0f);  // wider so it fills the view
 
     // PIERS sitting in the water
     drawPier(-18.0f, -4.0f, 0.0f, 10.0f, 12.0f, 12.0f);
     drawPier(18.0f, -4.0f, 0.0f, 10.0f, 12.0f, 12.0f);
-
-    // *** REMOVED the dark ground plate that used to make things look darker ***
-    // glColor3f(0.02f, 0.10f, 0.20f);
-    // glPushMatrix(); glTranslatef(0, -10, 0); drawBox(140.0f, 0.2f, 80.0f); glPopMatrix();
 
     // towers with decor
     glPushMatrix(); glTranslatef(-18.0f, 2.0f, 0.0f); drawTowerDecor(); glPopMatrix();
