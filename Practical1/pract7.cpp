@@ -1,16 +1,16 @@
-// ===================== Common Includes / Setup (Shared by Q1 & Q2) =====================
 #include <Windows.h>
+#include <wingdi.h>   // BITMAP, HBITMAP, LoadImage, GetObject, DeleteObject
 #include <gl/GL.h>
 #include <gl/GLU.h>
 #include <vector>
 #include <cmath>
+#include <string>   
 
 #pragma comment (lib, "OpenGL32.lib")
 #pragma comment (lib, "Glu32.lib")
 
 #define WINDOW_TITLE "OpenGL Window (Q1 + Q2)"
 
-// -------- Interaction state --------
 static float rotX = 20.0f;
 static float rotY = -30.0f;
 static float rotZ = 0.0f;
@@ -18,66 +18,75 @@ static float zoom = -4.0f;
 
 static bool  g_glInited = false;
 
-// App mode: which question we’re showing
 enum class AppMode { Q1_PYRAMID, Q2_CUBE };
 static AppMode g_mode = AppMode::Q1_PYRAMID;
 
-// -------- Textures --------
-static GLuint g_texBrick = 0; // used by Q1 and as an option in Q2
-static GLuint g_texWood = 0; // Q2
-static GLuint g_texMetal = 0; // Q2
+static GLuint g_texBrick = 0; 
+static GLuint g_texWood = 0; 
+static GLuint g_texMetal = 0;
 
 enum class CubeTex { WOOD, METAL, BRICK };
 static CubeTex g_cubeTex = CubeTex::WOOD;
 
-// ----------------- Utility: create an RGB texture from raw pixels -----------------
-static void uploadTexture(GLuint* texId, int W, int H, const std::vector<unsigned char>& imgRGB)
+#ifndef GL_BGR_EXT
+#define GL_BGR_EXT  0x80E0
+#endif
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT 0x80E1
+#endif
+
+static std::string exeDir()
 {
-    if (*texId == 0) glGenTextures(1, texId);
-    glBindTexture(GL_TEXTURE_2D, *texId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, W, H, 0, GL_RGB, GL_UNSIGNED_BYTE, imgRGB.data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, W, H, GL_RGB, GL_UNSIGNED_BYTE, imgRGB.data());
+    char buf[MAX_PATH]{};
+    GetModuleFileNameA(GetModuleHandle(NULL), buf, MAX_PATH);
+    std::string s(buf);
+    size_t p = s.find_last_of("\\/");
+    return (p == std::string::npos) ? std::string("") : s.substr(0, p + 1);
 }
 
-// ================================ Q1: Pyramid + Brick ================================
-static void createBrickTexture(GLuint* texId, int W = 256, int H = 256)
+static bool loadTextureBMP(const char* fileName, GLuint* outTex)
 {
-    const unsigned char mortar[3] = { 180, 180, 180 };
-    const unsigned char brickA[3] = { 178,  73,  50 };
-    const unsigned char brickB[3] = { 160,  60,  40 };
+    if (!outTex) return false;
+    if (*outTex == 0) glGenTextures(1, outTex);
 
-    const int brickH = 24;
-    const int brickW = 48;
-    const int mortarT = 3;
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-    std::vector<unsigned char> img(W * H * 3);
+    std::string full = fileName;
+    if (full.find(':') == std::string::npos && full.find('\\') == std::string::npos &&
+        full.find('/') == std::string::npos)
+        full = exeDir() + full;
 
-    for (int y = 0; y < H; ++y)
-    {
-        int row = y / brickH;
-        int yIn = y % brickH;
-        bool mortarRow = (yIn < mortarT);
-        int xOffset = (row % 2) ? brickW / 2 : 0;
+    HBITMAP hBMP = (HBITMAP)LoadImageA(
+        GetModuleHandle(NULL), full.c_str(), IMAGE_BITMAP, 0, 0,
+        LR_CREATEDIBSECTION | LR_LOADFROMFILE);
 
-        for (int x = 0; x < W; ++x)
-        {
-            int xAdj = (x + W - (xOffset % brickW)) % W;
-            int xIn = xAdj % brickW;
-            bool mortarCol = (xIn < mortarT) || (xIn >= brickW - mortarT);
-
-            const unsigned char* rgb;
-            if (mortarRow || mortarCol) rgb = mortar;
-            else                        rgb = ((xAdj / brickW) % 2) ? brickA : brickB;
-
-            float shade = 0.85f + 0.15f * (float)y / (float)H;
-            img[(y * W + x) * 3 + 0] = (unsigned char)(rgb[0] * shade);
-            img[(y * W + x) * 3 + 1] = (unsigned char)(rgb[1] * shade);
-            img[(y * W + x) * 3 + 2] = (unsigned char)(rgb[2] * shade);
-        }
+    if (!hBMP) {
+        std::string msg = "Failed to load BMP:\n" + full +
+            "\nPlace the .bmp next to the .exe or set Copy to Output Directory.";
+        MessageBoxA(NULL, msg.c_str(), "Texture Load Error", MB_OK | MB_ICONERROR);
+        return false;
     }
-    uploadTexture(texId, W, H, img);
+
+    BITMAP bmp{};
+    GetObject(hBMP, sizeof(BITMAP), &bmp);
+
+    GLenum srcFormat = (bmp.bmBitsPixel == 32) ? GL_BGRA_EXT : GL_BGR_EXT;
+    GLint  internal = (bmp.bmBitsPixel == 32) ? GL_RGBA : GL_RGB;
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, *outTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, internal,
+        bmp.bmWidth, bmp.bmHeight, 0,
+        srcFormat, GL_UNSIGNED_BYTE, bmp.bmBits);
+
+    glDisable(GL_TEXTURE_2D);
+    DeleteObject(hBMP);
+    return true;
 }
 
 static void drawTexturedPyramid()
@@ -104,85 +113,30 @@ static void drawTexturedPyramid()
     glBegin(GL_TRIANGLES);
     // +Z
     glNormal3f(0, h, s);
-    glTexCoord2f(0, 0); glVertex3f(-s, 0, s);
-    glTexCoord2f(1, 0); glVertex3f(s, 0, s);
+    glTexCoord2f(0, 0);   glVertex3f(-s, 0, s);
+    glTexCoord2f(1, 0);   glVertex3f(s, 0, s);
     glTexCoord2f(0.5f, 1); glVertex3f(0, h, 0);
 
     // -Z
     glNormal3f(0, h, -s);
-    glTexCoord2f(0, 0); glVertex3f(s, 0, -s);
-    glTexCoord2f(1, 0); glVertex3f(-s, 0, -s);
+    glTexCoord2f(0, 0);   glVertex3f(s, 0, -s);
+    glTexCoord2f(1, 0);   glVertex3f(-s, 0, -s);
     glTexCoord2f(0.5f, 1); glVertex3f(0, h, 0);
 
     // +X
     glNormal3f(s, h, 0);
-    glTexCoord2f(0, 0); glVertex3f(s, 0, s);
-    glTexCoord2f(1, 0); glVertex3f(s, 0, -s);
+    glTexCoord2f(0, 0);   glVertex3f(s, 0, s);
+    glTexCoord2f(1, 0);   glVertex3f(s, 0, -s);
     glTexCoord2f(0.5f, 1); glVertex3f(0, h, 0);
 
     // -X
     glNormal3f(-s, h, 0);
-    glTexCoord2f(0, 0); glVertex3f(-s, 0, -s);
-    glTexCoord2f(1, 0); glVertex3f(-s, 0, s);
+    glTexCoord2f(0, 0);   glVertex3f(-s, 0, -s);
+    glTexCoord2f(1, 0);   glVertex3f(-s, 0, s);
     glTexCoord2f(0.5f, 1); glVertex3f(0, h, 0);
     glEnd();
 
     glDisable(GL_TEXTURE_2D);
-}
-
-// ================================ Q2: Cube + Switchable Textures ================================
-// Very lightweight procedural textures so no image files are needed.
-
-// --- Wood: vertical planks with darker seams and subtle grain ---
-static void createWoodTexture(GLuint* texId, int W = 256, int H = 256)
-{
-    std::vector<unsigned char> img(W * H * 3);
-    for (int y = 0; y < H; ++y)
-    {
-        for (int x = 0; x < W; ++x)
-        {
-            // plank seams every ~48 px with 3 px dark gap
-            int seam = (x % 48);
-            bool isGap = (seam < 3);
-
-            // base color + sine-based grain
-            float grain = 0.5f + 0.5f * std::sin((x * 0.10f) + std::sin(y * 0.06f) * 0.8f);
-            float r = 105.0f + 60.0f * grain;
-            float g = 70.0f + 40.0f * grain;
-            float b = 40.0f + 25.0f * grain;
-
-            if (isGap) { r *= 0.35f; g *= 0.35f; b *= 0.35f; }
-
-            img[(y * W + x) * 3 + 0] = (unsigned char)r;
-            img[(y * W + x) * 3 + 1] = (unsigned char)g;
-            img[(y * W + x) * 3 + 2] = (unsigned char)b;
-        }
-    }
-    uploadTexture(texId, W, H, img);
-}
-
-// --- Metal: brushed look using vertical streaks + cool tone ---
-static void createMetalTexture(GLuint* texId, int W = 256, int H = 256)
-{
-    std::vector<unsigned char> img(W * H * 3);
-    for (int y = 0; y < H; ++y)
-    {
-        for (int x = 0; x < W; ++x)
-        {
-            float base = 190.0f + 30.0f * std::sin(y * 0.25f);
-            float brush = 25.0f * std::sin(x * 0.6f) + 20.0f * std::sin((x + y) * 0.15f);
-            float v = std::fmax(120.0f, std::fmin(235.0f, base + brush));
-            // bluish steel
-            unsigned char r = (unsigned char)(v * 0.90f);
-            unsigned char g = (unsigned char)(v * 0.95f);
-            unsigned char b = (unsigned char)(v);
-
-            img[(y * W + x) * 3 + 0] = r;
-            img[(y * W + x) * 3 + 1] = g;
-            img[(y * W + x) * 3 + 2] = b;
-        }
-    }
-    uploadTexture(texId, W, H, img);
 }
 
 static GLuint currentCubeTexture()
@@ -249,7 +203,6 @@ static void drawTexturedCube()
     glDisable(GL_TEXTURE_2D);
 }
 
-// ======================== Template plumbing + input handling ========================
 bool initPixelFormat(HDC hdc)
 {
     PIXELFORMATDESCRIPTOR pfd;
@@ -319,7 +272,7 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
         if (wParam == 'W') g_cubeTex = CubeTex::WOOD;
         if (wParam == 'M') g_cubeTex = CubeTex::METAL;
         if (wParam == 'B') g_cubeTex = CubeTex::BRICK;
-        if (wParam == 'T') // cycle
+        if (wParam == 'T') 
         {
             g_cubeTex = (g_cubeTex == CubeTex::WOOD) ? CubeTex::METAL :
                 (g_cubeTex == CubeTex::METAL) ? CubeTex::BRICK : CubeTex::WOOD;
@@ -366,19 +319,24 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     HGLRC hglrc = wglCreateContext(hdc);
     if (!wglMakeCurrent(hdc, hglrc)) return false;
 
-    // GL init
     g_glInited = true;
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
 
-    // set projection once
     RECT rc; GetClientRect(hWnd, &rc);
     SendMessage(hWnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
 
-    // Build textures for both questions
-    createBrickTexture(&g_texBrick); // Q1 + Q2
-    createWoodTexture(&g_texWood);  // Q2
-    createMetalTexture(&g_texMetal); // Q2
+    bool okB = loadTextureBMP("brick.bmp", &g_texBrick);
+    if (!okB) okB = loadTextureBMP("Box.bmp", &g_texBrick);  
+
+    bool okW = loadTextureBMP("wood.bmp", &g_texWood);
+    if (!okW) okW = loadTextureBMP("Box.bmp", &g_texWood);
+
+    bool okM = loadTextureBMP("metal.bmp", &g_texMetal);
+    if (!okM) okM = loadTextureBMP("Box.bmp", &g_texMetal);
+
+    if (!okW) g_texWood = g_texBrick;
+    if (!okM) g_texMetal = g_texBrick;
 
     ShowWindow(hWnd, nCmdShow);
 
