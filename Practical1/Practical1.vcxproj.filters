@@ -39,6 +39,9 @@
     <ClCompile Include="pract7bi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="pract7bii.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\graphic-prog\Practicals\Practical 7 Texture Mapping\wood.bmp">

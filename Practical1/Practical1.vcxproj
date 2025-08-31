@@ -132,6 +132,7 @@
     <ClCompile Include="pract6.cpp" />
     <ClCompile Include="pract7a.cpp" />
     <ClCompile Include="pract7bi.cpp" />
+    <ClCompile Include="pract7bii.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\Downloads\brick.bmp" />
