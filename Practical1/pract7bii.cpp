@@ -32,16 +32,12 @@ static inline float deg2rad(float a) { return a * 3.1415926535f / 180.0f; }
 void initGLStyling();
 void drawGridXZ(float halfX, float halfZ, float step);
 
-GLuint gTexTower = 0;      // 2.1 Tower texture
-GLuint gTexBase = 0;       // 2.2 Base texture
-GLuint gTexTop = 0;        // 2.3 Top texture
-GLuint gTexRoad = 0;       // 2.4 Bridge / Road texture
-GLuint gTexBackground = 0; // 2.5 Background texture
-// Water texture
-GLuint gTexWater = 0;
-static float gWaterUSpeed = 0.03f;
-static float gWaterVSpeed = 0.02f;
-
+GLuint gTexTower = 0;
+GLuint gTexBase = 0;
+GLuint gTexTop = 0;
+GLuint gTexRoad = 0;
+GLuint gTexBackground = 0; // SKY (bg.bmp)
+GLuint gTexWater = 0;      // WATER (water.bmp)
 
 static void bindPlaceholder(GLuint& tid, const char* nameRGBHint)
 {
@@ -56,8 +52,9 @@ static void bindPlaceholder(GLuint& tid, const char* nameRGBHint)
     else if (strstr(nameRGBHint, "top")) { r = 210; g = 200; b = 180; }
     else if (strstr(nameRGBHint, "road")) { r = 70;  g = 75;  b = 80; }
     else if (strstr(nameRGBHint, "bg")) { r = 120; g = 170; b = 220; }
+    else if (strstr(nameRGBHint, "water")) { r = 30;  g = 120; b = 170; }
 
-    for (int i = 0;i < 64 * 64 * 3;i += 3) { data[i] = r; data[i + 1] = g; data[i + 2] = b; }
+    for (int i = 0; i < 64 * 64 * 3; i += 3) { data[i] = r; data[i + 1] = g; data[i + 2] = b; }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 64, 64, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -85,7 +82,11 @@ static bool bmpToRGB24(HBITMAP hBmp, unsigned char*& out, int& w, int& h, int& r
     if (!GetDIBits(mem, hBmp, 0, h, out, &bi, DIB_RGB_COLORS)) { DeleteDC(mem); ReleaseDC(NULL, dc); delete[] out; out = nullptr; return false; }
     DeleteDC(mem); ReleaseDC(NULL, dc);
 
-    for (int y = 0;y < h;y++) for (int x = 0;x < w;x++) { int idx = y * rowSize + x * 3; unsigned char t = out[idx]; out[idx] = out[idx + 2]; out[idx + 2] = t; }
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            int idx = y * rowSize + x * 3;
+            unsigned char t = out[idx]; out[idx] = out[idx + 2]; out[idx + 2] = t;
+        }
     return true;
 }
 
@@ -111,7 +112,10 @@ static GLuint loadBMPTexture(const char* filename)
     return tid;
 }
 
-static GLuint tryLoad(const char* a, const char* b, const char* c) { GLuint t = loadBMPTexture(a); if (!t) t = loadBMPTexture(b); if (!t) t = loadBMPTexture(c); return t; }
+static GLuint tryLoad(const char* a, const char* b, const char* c)
+{
+    GLuint t = loadBMPTexture(a); if (!t) t = loadBMPTexture(b); if (!t) t = loadBMPTexture(c); return t;
+}
 
 static void initTextures()
 {
@@ -119,14 +123,18 @@ static void initTextures()
     gTexBase = tryLoad("stone.bmp", "../stone.bmp", "../../stone.bmp");
     gTexTop = tryLoad("gray.bmp", "../gray.bmp", "../../gray.bmp");
     gTexRoad = tryLoad("road.bmp", "../road.bmp", "../../road.bmp");
+
     gTexBackground = tryLoad("bg.bmp", "../bg.bmp", "../../bg.bmp");
+    glBindTexture(GL_TEXTURE_2D, gTexBackground);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F /*GL_CLAMP_TO_EDGE*/);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F /*GL_CLAMP_TO_EDGE*/);
+
     gTexWater = tryLoad("water.bmp", "../water.bmp", "../../water.bmp");
     glBindTexture(GL_TEXTURE_2D, gTexWater);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F /*GL_CLAMP_TO_EDGE*/);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F /*GL_CLAMP_TO_EDGE*/);
 }
 
-// =============== Geometry helpers ===============
 void drawBox(float w, float h, float d)
 {
     float x = w * 0.5f, y = h * 0.5f, z = d * 0.5f;
@@ -146,7 +154,6 @@ void drawBox(float w, float h, float d)
     glEnd();
 }
 
-// textured box (simple planar UVs with tiling)
 void drawBoxTex(float w, float h, float d, float uScale, float vScale)
 {
     float x = w * 0.5f, y = h * 0.5f, z = d * 0.5f;
@@ -206,12 +213,8 @@ void drawArch(float radius, float thickness, float span, int steps, float depth)
     glEnd();
 }
 
-// ---------------- NEW DETAILING ----------------
-static inline float cableY(float t, float yBase, float sag) {
-    float m = t - 0.5f;
-    return yBase - sag * (1.0f - 4.0f * m * m);
-}
-void drawHangers(float, float, float, float, float, float, float) {} // (not used below, left as stub)
+static inline float cableY(float t, float yBase, float sag) { float m = t - 0.5f; return yBase - sag * (1.0f - 4.0f * m * m); }
+void drawHangers(float, float, float, float, float, float, float) {}
 
 void drawBeamBox(float x0, float x1, float y0, float y1, float z0, float z1)
 {
@@ -267,21 +270,20 @@ void drawExpansionJoint(float width, float y)
     glEnable(GL_LIGHTING);
 }
 
-// ====== TOWER / PIER / ROAD using textures ======
 void drawTower()
 {
     glEnable(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, gTexTower);
     glColor3f(1, 1, 1);
-    drawBoxTex(6.0f, 24.0f, 8.0f, 2.0f, 2.5f); // main shaft
+    drawBoxTex(6.0f, 24.0f, 8.0f, 2.0f, 2.5f);
 
     glBindTexture(GL_TEXTURE_2D, gTexTop);
-    drawBoxTex(7.2f, 2.6f, 9.2f, 1.5f, 0.5f); // capital
-    drawBoxTex(7.6f, 0.3f, 9.6f, 1.0f, 0.2f); // trim
-    drawBoxTex(5.0f, 2.0f, 7.0f, 1.2f, 0.6f); // top block
-    drawBoxTex(5.6f, 0.35f, 7.6f, 1.2f, 0.2f);// coping
-    drawBoxTex(4.0f, 0.9f, 5.0f, 1.0f, 0.4f); // small top
+    drawBoxTex(7.2f, 2.6f, 9.2f, 1.5f, 0.5f);
+    drawBoxTex(7.6f, 0.3f, 9.6f, 1.0f, 0.2f);
+    drawBoxTex(5.0f, 2.0f, 7.0f, 1.2f, 0.6f);
+    drawBoxTex(5.6f, 0.35f, 7.6f, 1.2f, 0.2f);
+    drawBoxTex(4.0f, 0.9f, 5.0f, 1.0f, 0.4f);
 
     glDisable(GL_TEXTURE_2D);
 
@@ -334,43 +336,44 @@ void drawBasculeLeaf(bool leftSide, float angleDeg, float hingeX, float length, 
     glPopMatrix();
 }
 
-// ---------------- Bridge scene ----------------
 void drawWater(float x, float z, float w, float d)
 {
-    const float y = -9.95f; // flat “floor” height
+    const float y = -9.95f;
+
+    GLboolean wasCull = glIsEnabled(GL_CULL_FACE);
+    glDisable(GL_CULL_FACE);              // avoid hiding the top face
 
     glDisable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, gTexWater);
     glColor3f(1, 1, 1);
 
-    // Map the texture once across the whole water plane (0..1 UVs)
     float x0 = x - w * 0.5f, x1 = x + w * 0.5f;
     float z0 = z - d * 0.5f, z1 = z + d * 0.5f;
 
     glBegin(GL_TRIANGLES);
-    // tri 1
+    // CCW when viewed from above (+Y normal)
     glTexCoord2f(0.0f, 0.0f); glVertex3f(x0, y, z0);
-    glTexCoord2f(1.0f, 0.0f); glVertex3f(x1, y, z0);
-    glTexCoord2f(1.0f, 1.0f); glVertex3f(x1, y, z1);
-    // tri 2
-    glTexCoord2f(0.0f, 0.0f); glVertex3f(x0, y, z0);
-    glTexCoord2f(1.0f, 1.0f); glVertex3f(x1, y, z1);
     glTexCoord2f(0.0f, 1.0f); glVertex3f(x0, y, z1);
+    glTexCoord2f(1.0f, 1.0f); glVertex3f(x1, y, z1);
+
+    glTexCoord2f(0.0f, 0.0f); glVertex3f(x0, y, z0);
+    glTexCoord2f(1.0f, 1.0f); glVertex3f(x1, y, z1);
+    glTexCoord2f(1.0f, 0.0f); glVertex3f(x1, y, z0);
     glEnd();
 
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_LIGHTING);
+
+    if (wasCull) glEnable(GL_CULL_FACE);
 }
 
 void drawLampPost()
 {
-    // post
     glDisable(GL_TEXTURE_2D);
     glColor3f(0.18f, 0.18f, 0.20f);
     glPushMatrix(); drawBox(0.12f, 3.2f, 0.12f); glPopMatrix();
 
-    // lamp head (bright box)
     glDisable(GL_LIGHTING);
     glColor3f(1.0f, 0.95f, 0.85f);
     glPushMatrix(); glTranslatef(0.0f, 1.8f, 0.0f); drawBox(0.30f, 0.30f, 0.30f); glPopMatrix();
@@ -387,37 +390,29 @@ void placeLamps(float x0, float x1, float deckY, float z)
     }
 }
 
-
-void drawDeckGirders(float, float, float, float); // already defined
-
 void drawTowerDecor()
 {
-    // main textured shaft (your existing textured tower)
     drawTower();
 
-    // vertical pilasters (front/back) – give silhouette and depth
     glDisable(GL_TEXTURE_2D);
     glColor3f(0.62f, 0.58f, 0.53f);
     for (int i = 0; i < 3; ++i) {
-        float off = -2.0f + i * 2.0f; // -2,0,+2
+        float off = -2.0f + i * 2.0f;
         glPushMatrix(); glTranslatef(off, 0.0f, 4.05f);  drawBox(0.35f, 24.0f, 0.2f); glPopMatrix();
-        glPushMatrix(); glTranslatef(off, 0.0f, -4.05f);  drawBox(0.35f, 24.0f, 0.2f); glPopMatrix();
+        glPushMatrix(); glTranslatef(off, 0.0f, -4.05f); drawBox(0.35f, 24.0f, 0.2f); glPopMatrix();
     }
 
-    // stacked “hat” — cap, coping, trim, top block (same y’s as before)
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, gTexTop);
     glColor3f(1, 1, 1);
-
-    glPushMatrix(); glTranslatef(0, 12.0f, 0);  drawBoxTex(7.2f, 2.6f, 9.2f, 1.5f, 0.5f); glPopMatrix(); // capital band
-    glPushMatrix(); glTranslatef(0, 14.1f, 0); drawBoxTex(7.6f, 0.3f, 9.6f, 1.0f, 0.2f); glPopMatrix();  // thin trim
-    glPushMatrix(); glTranslatef(0, 14.5f, 0); drawBoxTex(5.0f, 2.0f, 7.0f, 1.2f, 0.6f); glPopMatrix();  // stone cap
-    glPushMatrix(); glTranslatef(0, 15.7f, 0); drawBoxTex(5.6f, 0.35f, 7.6f, 1.2f, 0.2f); glPopMatrix(); // coping
-    glPushMatrix(); glTranslatef(0, 16.25f, 0);drawBoxTex(4.0f, 0.9f, 5.0f, 1.0f, 0.4f); glPopMatrix();  // top block
+    glPushMatrix(); glTranslatef(0, 12.0f, 0);  drawBoxTex(7.2f, 2.6f, 9.2f, 1.5f, 0.5f); glPopMatrix();
+    glPushMatrix(); glTranslatef(0, 14.1f, 0); drawBoxTex(7.6f, 0.3f, 9.6f, 1.0f, 0.2f); glPopMatrix();
+    glPushMatrix(); glTranslatef(0, 14.5f, 0); drawBoxTex(5.0f, 2.0f, 7.0f, 1.2f, 0.6f); glPopMatrix();
+    glPushMatrix(); glTranslatef(0, 15.7f, 0); drawBoxTex(5.6f, 0.35f, 7.6f, 1.2f, 0.2f); glPopMatrix();
+    glPushMatrix(); glTranslatef(0, 16.25f, 0);drawBoxTex(4.0f, 0.9f, 5.0f, 1.0f, 0.4f); glPopMatrix();
 
     glDisable(GL_TEXTURE_2D);
 
-    // decorative front arch (as before)
     glDisable(GL_LIGHTING);
     glColor3f(0.40f, 0.38f, 0.35f);
     glPushMatrix(); glTranslatef(0.0f, -6.0f, 4.01f); drawArch(5.0f, 1.2f, 4.0f, 24, 0.2f); glPopMatrix();
@@ -458,9 +453,13 @@ void drawBridge()
     float deckTopY = -0.5f;
     drawDeckGirders(-18.0f, -6.0f, deckTopY, 6.0f);
     drawDeckGirders(6.0f, 18.0f, deckTopY, 6.0f);
+
+    placeLamps(-18.0f, -6.0f, deckTopY, 3.6f);
+    placeLamps(6.0f, 18.0f, deckTopY, 3.6f);
+    placeLamps(-18.0f, -6.0f, deckTopY, -3.6f);
+    placeLamps(6.0f, 18.0f, deckTopY, -3.6f);
 }
 
-// ---------------- Camera/Projection ----------------
 void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspective)
 {
     glViewport(vpX, vpY, vpW, vpH);
@@ -470,7 +469,6 @@ void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspecti
     float aspect = (vpH == 0) ? 1.0f : (float)vpW / (float)vpH;
 
     if (perspective) {
-        float top = 0.5f * tanf(deg2rad(55.0f)) * 0.5f; // not used; using helper:
         float zNear = 0.5f, zFar = 500.0f;
         float t = zNear * tanf(deg2rad(55.0f * 0.5f));
         float r = t * aspect;
@@ -488,7 +486,6 @@ void applyCameraAndProjection(int vpX, int vpY, int vpW, int vpH, bool perspecti
     glTranslatef(0, -3, 0);
 }
 
-// ---------------- Win32 WndProc ----------------
 LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -534,7 +531,6 @@ LRESULT WINAPI WindowProcedure(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
-// ---------------- Pixel Format ----------------
 bool initPixelFormat(HDC hdc)
 {
     PIXELFORMATDESCRIPTOR pfd{}; pfd.cAlphaBits = 8; pfd.cColorBits = 32; pfd.cDepthBits = 24; pfd.cStencilBits = 0;
@@ -544,7 +540,6 @@ bool initPixelFormat(HDC hdc)
     int n = ChoosePixelFormat(hdc, &pfd); return SetPixelFormat(hdc, n, &pfd) ? true : false;
 }
 
-// ---------------- Visual styling init ----------------
 void initGLStyling()
 {
     glEnable(GL_DEPTH_TEST);
@@ -570,7 +565,6 @@ void initGLStyling()
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 }
 
-// ---------------- Grid helper ----------------
 void drawGridXZ(float halfX, float halfZ, float step)
 {
     glDisable(GL_LIGHTING);
@@ -660,7 +654,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     if (!wglMakeCurrent(hdc, hglrc)) return false;
 
     initGLStyling();
-    initTextures(); // load tower/base/top/road/background textures (BMPs)
+    initTextures();
 
     ShowWindow(hWnd, nCmdShow);
 
