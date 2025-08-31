@@ -130,6 +130,13 @@
     <ClCompile Include="pract4B.cpp" />
     <ClCompile Include="pract5.cpp" />
     <ClCompile Include="pract6.cpp" />
+    <ClCompile Include="pract7a.cpp" />
+    <ClCompile Include="pract7b.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\Downloads\brick.bmp" />
+    <Image Include="..\..\..\Downloads\metal.bmp" />
+    <Image Include="..\..\graphic-prog\Practicals\Practical 7 Texture Mapping\wood.bmp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
