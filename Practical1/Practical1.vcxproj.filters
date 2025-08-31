@@ -36,7 +36,7 @@
     <ClCompile Include="pract7a.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pract7b.cpp">
+    <ClCompile Include="pract7bi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
