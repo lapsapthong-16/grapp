@@ -1,6 +1,7 @@
 ﻿#include <Windows.h>
 #include <gl/GL.h>
-
+#include <gl/GLU.h>
+#pragma comment (lib, "GLU32.lib")
 #pragma comment (lib, "OpenGL32.lib")
 
 #define WINDOW_TITLE "OpenGL Window"
