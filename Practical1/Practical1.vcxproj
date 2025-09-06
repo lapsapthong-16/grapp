@@ -124,6 +124,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ass.cpp" />
     <ClCompile Include="pract1.cpp" />
     <ClCompile Include="pract2.cpp" />
     <ClCompile Include="pract4A.cpp" />
@@ -133,6 +134,7 @@
     <ClCompile Include="pract7a.cpp" />
     <ClCompile Include="pract7bi.cpp" />
     <ClCompile Include="pract7bii.cpp" />
+    <ClCompile Include="pract8.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\Downloads\brick.bmp" />
